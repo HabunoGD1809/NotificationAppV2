@@ -8,22 +8,59 @@ class WebSocketProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
   bool _isConnected = false;
   String? _error;
+  String? _connectionState;
 
   bool get isConnected => _isConnected;
   String? get error => _error;
+  String? get connectionState => _connectionState;
 
   void initialize() {
+    // Escuchar notificaciones
     _webSocketService.notificationStream.listen(
           (notification) {
-        // Notificar a los listeners sobre la nueva notificación
         notifyListeners();
       },
       onError: (error) {
-        _error = error.toString();
-        _isConnected = false;
-        notifyListeners();
+        _handleError(error.toString());
       },
     );
+
+    // Escuchar estados de conexión
+    _webSocketService.connectionStateStream.listen(
+          (state) {
+        _handleConnectionState(state);
+      },
+      onError: (error) {
+        _handleError(error.toString());
+      },
+    );
+  }
+
+  void _handleConnectionState(String state) {
+    _connectionState = state;
+    _isConnected = state == 'connected';
+
+    switch (state) {
+      case 'session_closed':
+        _error = 'La sesión ha sido cerrada desde otro dispositivo';
+        break;
+      case 'max_reconnect_attempts_reached':
+        _error = 'No se pudo restablecer la conexión después de varios intentos';
+        break;
+      case 'token_refresh_failed':
+        _error = 'Error al actualizar el token de acceso';
+        break;
+      default:
+        _error = null;
+    }
+
+    notifyListeners();
+  }
+
+  void _handleError(String errorMessage) {
+    _error = errorMessage;
+    _isConnected = false;
+    notifyListeners();
   }
 
   Future<void> connect(String sessionId) async {
@@ -31,26 +68,20 @@ class WebSocketProvider with ChangeNotifier {
       final token = await _apiService.getAccessToken();
       if (token != null) {
         await _webSocketService.connect(sessionId, token);
-        _isConnected = true;
-        _error = null;
       } else {
         throw Exception('No se encontró token de acceso');
       }
     } catch (e) {
-      _error = e.toString();
-      _isConnected = false;
+      _handleError(e.toString());
     }
-    notifyListeners();
   }
 
   Future<void> disconnect() async {
     try {
       await _webSocketService.disconnect();
-      _isConnected = false;
     } catch (e) {
-      _error = e.toString();
+      _handleError(e.toString());
     }
-    notifyListeners();
   }
 
   Future<void> reconnect(String sessionId) async {

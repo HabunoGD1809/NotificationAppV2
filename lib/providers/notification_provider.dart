@@ -34,16 +34,19 @@ class NotificationProvider with ChangeNotifier {
   String? get statsError => _statsError;
 
   Future<void> loadNotifications({bool refresh = false}) async {
+    // Si ya está cargando o no hay más notificaciones, salir
+    if (_isLoading || (!_hasMoreNotifications && !refresh)) return;
+
+    // Marcar como cargando antes de notificar
+    _isLoading = true;
+
+    // Solo limpiar y notificar si es un refresh
     if (refresh) {
       _currentPage = 0;
       _hasMoreNotifications = true;
+      _notifications = [];
+      notifyListeners();
     }
-
-    if (_isLoading || (!_hasMoreNotifications && !refresh)) return;
-
-    _isLoading = true;
-    if (refresh) _notifications.clear();
-    notifyListeners();
 
     try {
       final notifications = await _apiService.getNotifications(
@@ -67,6 +70,7 @@ class NotificationProvider with ChangeNotifier {
       _error = e.toString();
     } finally {
       _isLoading = false;
+      // Notificar solo una vez al final
       notifyListeners();
     }
   }
@@ -74,6 +78,7 @@ class NotificationProvider with ChangeNotifier {
   Future<void> loadUnreadNotifications() async {
     try {
       _unreadNotifications = await _apiService.getUnreadNotifications();
+      // Notificar solo si hay cambios
       notifyListeners();
     } catch (e) {
       _error = e.toString();

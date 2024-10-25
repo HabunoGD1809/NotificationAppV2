@@ -17,12 +17,16 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _scrollController = ScrollController();
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    _initializeScreen();
     _scrollController.addListener(_onScroll);
+    // Usar addPostFrameCallback para inicializar después del primer build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeScreen();
+    });
   }
 
   @override
@@ -44,6 +48,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initializeScreen() async {
+    if (!mounted) return;
+
     final notificationProvider =
     Provider.of<NotificationProvider>(context, listen: false);
     final deviceProvider =
@@ -53,6 +59,12 @@ class _HomeScreenState extends State<HomeScreen> {
       notificationProvider.loadNotifications(refresh: true),
       deviceProvider.initializeCurrentDevice(),
     ]);
+
+    if (mounted) {
+      setState(() {
+        _isInitialized = true;
+      });
+    }
   }
 
   Future<void> _handleRefresh() async {
@@ -64,6 +76,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final notificationProvider = Provider.of<NotificationProvider>(context);
+
+    if (!_isInitialized) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: CustomAppBar(

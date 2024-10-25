@@ -233,7 +233,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Desarrollado por TuEmpresa',
+                      'Desarrollado por fjv@ldex',
                       style: TextStyle(
                         color: Colors.grey[600],
                       ),
