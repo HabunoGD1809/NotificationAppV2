@@ -15,31 +15,29 @@ class ApiService {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   // Auth Methods
-  Future<Map<String, dynamic>> login(
-      String email,
-      String password,
-      Map<String, dynamic> deviceInfo
-      ) async {
+  Future<Map<String, dynamic>> login(String email, String password, Device deviceInfo) async {
     try {
       developer.log('Enviando solicitud de login al servidor');
 
-      // Crear los datos del formulario
+      // Crear datos del formulario
       final formData = {
         'username': email,
         'password': password,
+        'device_id': deviceInfo.deviceId,
+        'device_name': deviceInfo.deviceName,
+        'modelo': deviceInfo.modelo,
+        'sistema_operativo': deviceInfo.sistemaOperativo,
       };
 
-      // Agregar device_info como un campo adicional en JSON
+      developer.log('Request body: $formData');
+
       final response = await _client.post(
         Uri.parse('${ApiConfig.baseUrl}${ApiConfig.login}'),
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json',
         },
-        body: Uri(queryParameters: {
-          ...formData,
-          'device_info': jsonEncode(deviceInfo),
-        }).query,
+        // Codificar los datos del formulario correctamente
+        body: Uri(queryParameters: formData).query,
       );
 
       developer.log('Respuesta recibida: ${response.statusCode}');
@@ -49,25 +47,26 @@ class ApiService {
         final data = jsonDecode(response.body);
         await _storage.write(key: 'access_token', value: data['access_token']);
         await _storage.write(key: 'refresh_token', value: data['refresh_token']);
-        if (data['session_id'] != null) {
-          await _storage.write(key: 'session_id', value: data['session_id']);
-        }
+        await _storage.write(key: 'session_id', value: data['session_id']);
         return data;
       }
 
-      final error = jsonDecode(response.body);
-      if (error['detail'] is List) {
-        throw HttpException(error['detail'][0]['msg']);
+      final errorBody = jsonDecode(response.body);
+      if (errorBody['detail'] is Map) {
+        throw HttpException(errorBody['detail']['error'] ?? 'Error de autenticación');
+      } else {
+        throw HttpException(errorBody['detail'] ?? 'Error de autenticación');
       }
-      throw HttpException(error['detail'] ?? 'Error de autenticación');
-
     } catch (e, stackTrace) {
       developer.log(
         'Error en login',
         error: e,
         stackTrace: stackTrace,
       );
-      rethrow;
+      if (e is HttpException) {
+        rethrow;
+      }
+      throw HttpException('Error de conexión: $e');
     }
   }
 
@@ -93,14 +92,17 @@ class ApiService {
   }
 
   // User Methods
+  // la he modificado
   Future<User> getCurrentUser() async {
     final token = await _storage.read(key: 'access_token');
+    developer.log('Obteniendo usuario actual con token: $token');
     final response = await _client.get(
       Uri.parse('${ApiConfig.baseUrl}${ApiConfig.currentUser}'),
       headers: ApiConfig.getHeaders(token),
     );
 
     if (response.statusCode == 200) {
+      developer.log('Usuario actual obtenido: ${response.body}');
       return User.fromJson(jsonDecode(response.body));
     }
 
